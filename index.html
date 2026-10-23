@@ -67,6 +67,9 @@ h1{font-family:var(--display);font-size:26px;margin:0;letter-spacing:-.01em}
 .sheet.enter{animation:fade-in .12s ease-out}
 @keyframes fade-in{from{opacity:0}}
 .sheet .sub-head{margin-top:14px}
+.push{display:grid;gap:8px}
+.push-actions{display:flex;gap:8px;flex-wrap:wrap}
+button[disabled]{opacity:.55;cursor:default}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
 .sheet-head h2{font-family:var(--display);font-size:22px;margin:0}
 html.noscroll,html.noscroll body{overflow:hidden}
@@ -192,7 +195,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
 // Every load starts from the same layout; toggles last until the page is reopened.
 const collapsed=new Set(["balances","week","upcoming","manual","entries","backup"]);
-const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0};
+const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,uid:null,push:"unknown",pushBusy:false};
 let db=null;
 
 const $=s=>document.querySelector(s);
@@ -380,6 +383,8 @@ function render(){
     const dayName=d=>d===t?"Today":d===addDays(t,-1)?"Yesterday":`${dow(d)}, ${short(d)}`;
     out.push(`<div class="sheet-back"><div class="sheet ${state.notifEnter?"enter":""}" role="dialog" aria-modal="true" aria-labelledby="notifTitle">
       <div class="sheet-head"><h2 id="notifTitle">Notifications</h2><button class="ghost" id="notifClose" data-notif-close>Close</button></div>
+      ${pushBlock()}
+      <div class="sub-head">History</div>
       <p class="small muted">Scheduled items you've logged or dismissed, newest first. Tap Edit or Undo to change one.</p>
       <div>${handled.length
         ?groups.map(g=>`<div class="sub-head">${dayName(g.d)}</div><ul class="list">${g.items.map(s=>itemRow(s,"hist")).join("")}</ul>`).join("")
@@ -415,6 +420,74 @@ function toggleSection(key){
   sec.querySelector(".sec-head").setAttribute("aria-expanded",String(!collapsed.has(key)));
 }
 
+/* ---------- Payday alerts (push notifications) ---------- */
+
+// Public half of the app's push key; the private half lives only in Supabase's Edge Function secrets.
+const VAPID_PUBLIC_KEY="BMQBKLRuxoTY1Lu62FdZMNhntUjcqWGn8YnDinWEJhhb1R4YbFQS_7zDBLGNGTt15w9dRon20IXNhEvhKVzUDEQ";
+const pushSupported=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+const keyBytes=k=>Uint8Array.from(atob((k+"=".repeat((4-k.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0));
+const setupMissing=e=>/push_subscriptions|PGRST205|42P01|not found|Failed to send|FunctionsFetchError|FunctionsHttpError/i.test((e?.message||"")+" "+(e?.code||"")+" "+(e?.name||""));
+
+function pushBlock(){
+  const busy=state.pushBusy?"disabled":"";
+  const body={
+    unknown:`<p class="small muted">Checking this device…</p>`,
+    unsupported:`<p class="small muted">Alerts work in the Home Screen app. Open MJ's Finances from your Home Screen to turn them on.</p>`,
+    denied:`<p class="small muted">Alerts are blocked for this app. Turn them on in Settings › Notifications › MJ's Finances, then come back here.</p>`,
+    off:`<p class="small muted">Get an alert on payday Thursdays around 11pm, when your paycheck lands.</p><div class="push-actions"><button data-push-on ${busy}>Turn on alerts</button></div>`,
+    on:`<p class="small muted">Payday alerts are on for this device.</p><div class="push-actions"><button data-push-test ${busy}>Send a test</button><button class="ghost" data-push-off ${busy}>Turn off</button></div>`,
+  }[state.push];
+  return `<div class="push"><div class="sub-head">Payday alerts</div>${body}</div>`;
+}
+async function refreshPush(){
+  try{
+    if(!pushSupported()) state.push="unsupported";
+    else if(Notification.permission==="denied") state.push="denied";
+    else{
+      const sub=await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+      state.push=sub&&Notification.permission==="granted"?"on":"off";
+      if(state.push==="on") saveSub(sub).catch(()=>{}); // keep the server's copy current
+    }
+  }catch{state.push="off"}
+  render();
+}
+async function saveSub(sub){
+  const {error}=await sb.from("push_subscriptions").upsert({user_id:state.uid,endpoint:sub.endpoint,subscription:sub.toJSON()},{onConflict:"user_id,endpoint"});
+  if(error) throw error;
+}
+async function enablePush(){
+  // iPhones only allow the permission prompt straight from a tap, so ask before anything else waits.
+  const asking=Notification.requestPermission();
+  state.pushBusy=true;render();
+  try{
+    const perm=await asking;
+    if(perm!=="granted"){state.push=perm==="denied"?"denied":"off";return}
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(VAPID_PUBLIC_KEY)});
+    await saveSub(sub);
+    state.push="on";toast("Payday alerts are on");
+  }catch(e){toast(setupMissing(e)?"Alerts need the one-time Supabase setup first.":"Couldn't turn on alerts. Try again.")}
+  finally{state.pushBusy=false;render()}
+}
+async function testPush(){
+  state.pushBusy=true;render();
+  try{
+    const {data,error}=await sb.functions.invoke("payday-push",{body:{test:true}});
+    if(error) throw error;
+    toast(data?.sent?"Test sent. It should pop up in a few seconds.":"No devices have alerts on. Turn them off and on again.");
+  }catch(e){toast(setupMissing(e)?"Couldn't reach the alert sender. Finish the Supabase setup first.":"Couldn't send a test. Try again.")}
+  finally{state.pushBusy=false;render()}
+}
+async function disablePush(){
+  state.pushBusy=true;render();
+  try{
+    const sub=await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+    if(sub){await sb.from("push_subscriptions").delete().eq("endpoint",sub.endpoint);await sub.unsubscribe()}
+    state.push="off";toast("Payday alerts are off on this device");
+  }catch{toast("Couldn't turn off alerts. Try again.")}
+  finally{state.pushBusy=false;render()}
+}
+
 function closeNotif(){state.notif=false;state.editing=null;render();$("#notifBtn")?.focus({preventScroll:true})}
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&state.notif)return closeNotif();
@@ -422,8 +495,11 @@ document.addEventListener("keydown",e=>{
 document.addEventListener("click",e=>{
   const at=sel=>e.target.closest(sel);
   let el;
-  if(at("[data-notif]")){if(state.notif)return closeNotif();state.notif=state.notifEnter=true;state.editing=null;render();return $("#notifClose")?.focus({preventScroll:true})}
+  if(at("[data-notif]")){if(state.notif)return closeNotif();state.notif=state.notifEnter=true;state.editing=null;render();refreshPush();return $("#notifClose")?.focus({preventScroll:true})}
   if(at("[data-notif-close]")||e.target.classList?.contains("sheet-back")) return closeNotif();
+  if(at("[data-push-on]")) return enablePush();
+  if(at("[data-push-test]")) return testPush();
+  if(at("[data-push-off]")) return disablePush();
   if(el=at("[data-collapse]")) return toggleSection(el.dataset.collapse);
   if(at("[data-toggle-bal]")){state.showBal=!state.showBal;state.showSmall=state.showBal;return render()}
   if(at("[data-toggle-small]")){state.showSmall=!state.showSmall;return render()}
@@ -602,7 +678,7 @@ function applyPlanUpdates(){
 
 function start(userId){
   if(db)return;
-  db=cloudStore(userId);
+  db=cloudStore(userId);state.uid=userId;
   db.doc("settings/main").onSnapshot(s=>{state.settings=s.exists?s.data():null;state.ready.s=true;render()});
   db.collection("schedule").onSnapshot(q=>{state.schedule=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.sc=true;render()});
   db.collection("txns").onSnapshot(q=>{state.txns=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.t=true;render()});
