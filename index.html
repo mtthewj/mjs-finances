@@ -464,6 +464,7 @@ function cloudStore(userId){
     const fresh={};for(const r of rows)col(fresh,r.collection)[r.id]=r.data;
     for(const op of queue)apply(fresh,op); // keep anything typed while downloading
     data=fresh;store.loaded=true;keep(CK,data);notify();setSync(queue.length?"saving":"synced");
+    return true;
   };
   store.doc=path=>{const [c,id]=path.split("/");return{
     onSnapshot:f=>listen(()=>f(snap(id,col(data,c)[id]))),
@@ -532,17 +533,38 @@ document.addEventListener("submit",async e=>{
   }
 });
 
+// Budget changes made after your data was imported. Each one is applied once, and only to
+// scheduled items you haven't logged yet. New ids go at the end.
+const PLAN_UPDATES=[
+  {id:"2026-10-23-food-125",settings:{foodWeekly:125},planned:{"2026-11-06-sav":135,"2026-11-20-sav":135,"2026-12-04-sav":234.22,"2026-12-18-sav":635,"2027-01-01-sav":635,"2027-01-15-sav":635}},
+];
+// Runs only right after a successful download, so it never writes over a newer change from another device.
+function applyPlanUpdates(){
+  const st=state.settings;if(!st)return;
+  const done=st.planUpdates||[],todo=PLAN_UPDATES.filter(u=>!done.includes(u.id));if(!todo.length)return;
+  const patch={};
+  for(const u of todo){
+    Object.assign(patch,u.settings);
+    for(const [id,planned] of Object.entries(u.planned||{})){
+      const s=state.schedule.find(x=>x.id===id);
+      if(s&&s.actual==null&&s.planned!==planned)db.doc("schedule/"+id).update({planned});
+    }
+  }
+  db.doc("settings/main").update({...patch,planUpdates:[...done,...todo.map(u=>u.id)]});
+}
+
 function start(userId){
   if(db)return;
   db=cloudStore(userId);
   db.doc("settings/main").onSnapshot(s=>{state.settings=s.exists?s.data():null;state.ready.s=true;render()});
   db.collection("schedule").onSnapshot(q=>{state.schedule=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.sc=true;render()});
   db.collection("txns").onSnapshot(q=>{state.txns=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.t=true;render()});
-  db.pull().then(render);
+  const sync=()=>db.pull().then(ok=>{if(ok)applyPlanUpdates()});
+  sync().then(render);
   // Pick up changes from your other devices, and re-render so "today" stays right.
-  window.addEventListener("online",()=>db.pull());
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden){db.pull();render()}});
-  setInterval(()=>{db.pull();render()},60*1000);
+  window.addEventListener("online",sync);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden){sync();render()}});
+  setInterval(()=>{sync();render()},60*1000);
 }
 
 (async()=>{
