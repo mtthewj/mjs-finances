@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MJ's Finances</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MJ's Finances">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F3F6F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1513" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;500;600;800&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: one phone-first column. Every section is the same card: a tappable header (title, meta, chevron) over a body. */
+:root{
+  --bg:#F3F6F4; --surface:#FFFFFF; --ink:#13201B; --muted:#5B6B64; --line:#DCE4E0;
+  --accent:#0E6B58; --accent-ink:#FFFFFF; --accent-soft:#DCEFE9;
+  --good:#167A3E; --warn:#A35A06; --warn-soft:#FBEBD3; --bad:#B42318;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1513; --surface:#16201D; --ink:#E4ECE8; --muted:#94A69F; --line:#26332F;
+  --accent:#4CC2A4; --accent-ink:#06231C; --accent-soft:#173A31;
+  --good:#5CCB8A; --warn:#F0A94B; --warn-soft:#3A2A12; --bad:#F2877C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1513; --surface:#16201D; --ink:#E4ECE8; --muted:#94A69F; --line:#26332F;
+  --accent:#4CC2A4; --accent-ink:#06231C; --accent-soft:#173A31;
+  --good:#5CCB8A; --warn:#F0A94B; --warn-soft:#3A2A12; --bad:#F2877C; color-scheme:dark}
+
+*,*::before,*::after{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;gap:16px}
+p{margin:0}
+
+/* Type */
+h1{font-family:var(--display);font-size:26px;margin:0;letter-spacing:-.01em}
+.label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.small{font-size:13px}
+.muted{color:var(--muted)}
+.strong{color:var(--ink);font-weight:700}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:500}
+.in{color:var(--good)} .bad{color:var(--bad)}
+.mask{letter-spacing:.1em;color:var(--muted)}
+
+/* Page header */
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.page-head .next{text-align:right;font-size:13px;color:var(--muted)}
+
+/* Section card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 16px;min-width:0}
+.card.extra{background:transparent;border:1.5px dashed color-mix(in srgb,var(--muted) 45%,transparent)}
+.sec-head{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
+.sec-title{flex:1;min-width:0;margin:0;font:800 14px/1.2 var(--body);text-transform:uppercase;letter-spacing:.07em;color:var(--ink)}
+.sec-meta{font-size:13px;color:var(--muted);white-space:nowrap}
+.chev{flex:none;width:8px;height:8px;margin-left:2px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-2px) rotate(45deg);transition:transform .15s}
+.sec-body{display:grid;gap:14px;padding-bottom:16px}
+section[data-collapsed] .chev{transform:rotate(-45deg)}
+section[data-collapsed]:not(.peek) .sec-body{display:none}
+/* A "peek" section keeps its first row visible while collapsed. */
+.peek[data-collapsed] .more,.peek[data-collapsed] .open-only{display:none}
+.peek:not([data-collapsed]) .closed-only{display:none}
+.sub-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:4px}
+
+/* Notices */
+.notice{border-radius:14px;padding:14px 16px;display:grid;gap:6px;background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent)}
+.notice.info{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.notice-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700}
+
+/* Controls */
+button,select,input{font:inherit;color:inherit}
+button{min-height:42px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:0 16px;cursor:pointer;font-weight:600}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.ghost{min-height:36px;border-color:transparent;background:transparent;color:var(--muted);padding:0 8px}
+button.ghost.danger{color:var(--bad)}
+input,select{display:block;width:100%;min-width:0;height:42px;padding:0 12px;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;-webkit-appearance:none;appearance:none}
+select{padding-right:32px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 17px) 18px,calc(100% - 12px) 18px;background-size:5px 5px;background-repeat:no-repeat}
+input[type=date]{line-height:42px}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[role=button]{cursor:pointer}
+details summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:40px;display:flex;align-items:center;gap:10px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+details[open] summary::before{transform:translateY(-2px) rotate(45deg)}
+.reveal{white-space:nowrap}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+
+/* Forms */
+.quick{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.form-grid label{display:grid;gap:5px;font-size:13px;color:var(--muted);min-width:0}
+.form-grid .full{grid-column:1/-1;display:flex;align-items:center;gap:12px}
+
+/* Balances */
+.balances{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.bal{display:grid;gap:2px;min-width:0}
+.bal .num{font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Meters */
+.meter{display:grid;gap:6px}
+.meter-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.bar.over>i{background:var(--bad)}
+
+/* Rows (schedule items and entries) */
+.list{list-style:none;margin:0;padding:0}
+.item{display:grid;grid-template-columns:48px minmax(0,1fr) auto;grid-template-areas:"date title amt";column-gap:12px;row-gap:10px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.list>.item:first-child{border-top:0;padding-top:2px}
+.item .date{grid-area:date;font-size:13px;color:var(--muted)}
+.item .title{grid-area:title;min-width:0;overflow-wrap:anywhere;font-weight:500}
+.item .sub{font-size:13px;color:var(--muted);font-weight:400;margin-top:2px}
+.item .amt{grid-area:amt;display:grid;justify-items:end;gap:2px}
+.item .actions{display:flex;gap:2px;margin-right:-8px}
+/* While logging, the entry box gets its own full-width row so the title never gets squeezed. */
+.item.open{grid-template-columns:48px minmax(0,1fr);grid-template-areas:"date title" "form form"}
+.log-form{grid-area:form;display:flex;gap:8px}
+.log-form input{flex:1}
+.pill{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:1px 8px;margin-right:4px;vertical-align:1px}
+.pill.done{background:var(--accent-soft);color:var(--accent)}
+.pill.due{background:var(--warn-soft);color:var(--warn)}
+.pill.skip{background:var(--line);color:var(--muted)}
+.strike{text-decoration:line-through}
+
+/* Extra zone */
+.extra-zone{display:grid;gap:12px;margin-top:8px;padding-top:20px;border-top:2px dashed var(--line)}
+
+.sync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:2px;min-height:16px}
+.sync::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--sync,transparent)}
+.sync[data-s=synced]{--sync:var(--good)}.sync[data-s=saving]{--sync:var(--warn)}.sync[data-s=offline]{--sync:var(--bad)}
+.auth label{grid-column:1/-1}
+.file-btn{display:inline-flex;align-items:center;min-height:42px;padding:0 16px;border:1px solid var(--line);border-radius:10px;font-weight:600;cursor:pointer;background:var(--surface)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;font-weight:600;max-width:calc(100% - 32px)}
+
+@media (max-width:400px){
+  .bal .num{font-size:16px}
+  .item{grid-template-columns:44px minmax(0,1fr) auto}
+  .item.open{grid-template-columns:44px minmax(0,1fr)}
+}
+@media (max-width:360px){.form-grid{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="page-head">
+    <div>
+      <div class="label" id="periodLabel">&nbsp;</div>
+      <h1>MJ's Finances</h1>
+      <div id="sync" class="sync" aria-live="polite"></div>
+    </div>
+    <div class="next" id="nextPay"></div>
+  </header>
+  <div id="status"><p class="muted">Loading your balances and schedule…</p></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="supabase-2.117.2.js"></script>
+<script>
+const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
+// Every load starts from the same layout; toggles last until the page is reopened.
+const collapsed=new Set(["balances","week","upcoming","manual","entries","backup"]);
+const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false};
+let db=null;
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=n=>(n<0?"-":"")+"$"+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const cents=v=>Math.round(parseFloat(v)*100)/100;
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const parse=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
+const diffDays=(a,b)=>Math.round((parse(b)-parse(a))/864e5);
+const short=s=>parse(s).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const dow=s=>parse(s).toLocaleDateString("en-US",{weekday:"short"});
+const today=()=>iso(new Date());
+const plural=(n,w)=>`${n} ${w}${n===1?"":"s"}`;
+const cycle=(anchor,len,day)=>{const start=addDays(anchor,Math.floor(diffDays(anchor,day)/len)*len);return {start,end:addDays(start,len-1)}};
+
+// Dismissing "All caught up" is per device; logging something new brings it back.
+let dismissedMem="";
+function getDismissed(){try{return localStorage.getItem("caughtUpDismissed")||dismissedMem}catch{return dismissedMem}}
+function setDismissed(k){dismissedMem=k;try{localStorage.setItem("caughtUpDismissed",k)}catch{}}
+
+function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2200)}
+
+// Every logged amount flows through one place so balances can't drift.
+function entries(){
+  const out=[];
+  for(const s of state.schedule) if(typeof s.actual==="number") out.push({date:s.date,cat:s.cat,amount:s.actual});
+  return out.concat(state.txns);
+}
+function balances(){
+  const st=state.settings;let chk=st.startChecking,card=st.startCard,sav=st.startSavings;
+  for(const {cat,amount:a} of entries()){
+    if(cat==="income") chk+=a;
+    else if(cat==="charge") card+=a;
+    else {chk-=a; if(cat==="card") card-=a; if(cat==="savings") sav+=a;}
+  }
+  return {chk,card,sav};
+}
+const spent=(cat,from,to)=>entries().filter(e=>e.cat===cat&&e.date>=from&&e.date<=to).reduce((s,e)=>s+e.amount,0);
+
+/* ---------- Building blocks: every section, row and form is made by one of these ---------- */
+
+function section({key,title,meta="",body,variant="",peek=false}){
+  const c=collapsed.has(key);
+  return `<section class="card ${variant} ${peek?"peek":""}" data-key="${key}" ${c?"data-collapsed":""}>
+    <header class="sec-head" data-collapse="${key}" role="button" tabindex="0" aria-expanded="${!c}">
+      <h2 class="sec-title">${title}</h2>${meta?`<span class="sec-meta">${meta}</span>`:""}<span class="chev" aria-hidden="true"></span>
+    </header>
+    <div class="sec-body">${body}</div>
+  </section>`;
+}
+// A hidden dollar amount that reveals (along with the Balances board) on tap.
+const secret=v=>`<span class="reveal" data-toggle-bal role="button" tabindex="0">${state.showBal?`<span class="num strong">${money(v)}</span>`:`<span class="mask">$••••</span>`}</span>`;
+function meter(label,note,used,budget){
+  const left=budget-used,pct=budget>0?Math.min(100,used/budget*100):0;
+  return `<div class="meter"><div class="meter-top"><span><b>${label}</b>${note?` <span class="muted small">${note}</span>`:""}</span>
+    <span class="num small ${left<0?"bad":"muted"}">${money(left)} left of ${money(budget)}</span></div>
+    <div class="bar ${left<0?"over":""}"><i style="width:${pct}%"></i></div></div>`;
+}
+function quickForm(cat,label){
+  return `<form class="quick" data-cat="${cat}"><input id="${cat}Amt" class="q-amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="$ spent" aria-label="Amount spent on ${label}"><input id="${cat}Note" class="q-note" type="text" maxlength="60" placeholder="Note (optional)" aria-label="Note"><button class="primary" type="submit">Add</button></form>`;
+}
+function itemRow(s,ctx,extra=""){
+  const t=today(),logged=typeof s.actual==="number",skipped=!logged&&s.skipped===true,editing=state.editing===s.id,open=editing||(!logged&&!skipped&&s.date<=t);
+  const id=esc(s.id);
+  let sub="";
+  if(open){
+    const b=balances(),[name,v]=s.cat==="card"?["Card owed now",Math.max(0,b.card)]:s.cat==="savings"?["Savings now",b.sav]:["Checking now",b.chk];
+    sub=`Planned <span class="num strong">${money(s.planned)}</span> · ${name}: ${secret(v)}`;
+  } else {
+    const status=logged?`<span class="pill done">Logged</span>`:skipped?`<span class="pill skip">Dismissed</span>`:"";
+    const diff=logged&&s.actual!==s.planned?`planned ${money(s.planned)}`:(!logged&&!skipped?dow(s.date):"");
+    if(status||diff) sub=status+diff;
+  }
+  const head=`<span class="date">${short(s.date)}</span><div class="title">${esc(s.title)}${sub?`<div class="sub">${sub}</div>`:""}</div>`;
+  if(open) return `<li class="item open ${extra}">${head}<div class="log-form"><input id="log-${ctx}-${id}" type="number" inputmode="decimal" step="0.01" min="0" value="${logged?s.actual:s.planned}" aria-label="Actual amount for ${esc(s.title)}"><button class="primary" data-log="${id}">${logged?"Save":"Log"}</button>${logged?`<button class="ghost" data-unlog="${id}">Undo</button>`:`<button class="ghost" data-skip="${id}">Dismiss</button>`}${editing?`<button class="ghost" data-cancel>Cancel</button>`:""}</div></li>`;
+  const sign=s.cat==="income"?"+":"−";
+  return `<li class="item ${extra}">${head}<div class="amt"><span class="num ${skipped?"muted strike":s.cat==="income"?"in":""}">${sign}${money(logged?s.actual:s.planned)}</span><div class="actions">${skipped?`<button class="ghost" data-unskip="${id}">Undo</button>`:`<button class="ghost" data-edit="${id}">${logged?"Edit":"Log"}</button>${logged?`<button class="ghost" data-unlog="${id}">Undo</button>`:""}`}</div></div></li>`;
+}
+function entryRow(x){
+  const armed=state.armed===x.id;
+  return `<li class="item"><span class="date">${short(x.date)}</span><div class="title">${esc(x.note||CATS[x.cat])}<div class="sub">${CATS[x.cat]}</div></div>
+    <div class="amt"><span class="num ${x.cat==="income"?"in":""}">${x.cat==="income"?"+":"−"}${money(x.amount)}</span><div class="actions"><button class="ghost ${armed?"danger":""}" data-del="${esc(x.id)}">${armed?"Tap again to delete":"Delete"}</button></div></div></li>`;
+}
+
+/* ---------- Page ---------- */
+
+function render(){
+  const r=state.ready; if(!(r.s&&r.sc&&r.t)) return;
+  const st=state.settings;
+  if(!st){if(!db?.loaded){$("#status").innerHTML=`<p class="muted">Loading your data…</p>`;return}
+    $("#status").innerHTML=`<div class="card"><div class="sec-body" style="padding-top:16px"><p class="sec-title">Welcome</p><p>You're signed in, but your account has no data yet. Import your backup file to get started.</p><label class="file-btn"><input id="importFile" type="file" accept="application/json,.json" hidden>Import backup</label></div></div>`;return}
+  const t=today(), per=cycle(st.firstPayday,14,t), wk=cycle(st.firstPayday,7,t);
+  const nextPayday=addDays(per.start,14), daysToPay=diffDays(t,nextPayday);
+  $("#periodLabel").textContent=`Pay period ${short(per.start)} – ${short(per.end)}`;
+  $("#nextPay").innerHTML=`Next deposit<br><b class="num strong">Thu ${short(addDays(nextPayday,-1))}, ~11pm</b><br>${daysToPay<=1?"tonight or tomorrow":plural(daysToPay,"day")}`;
+
+  const b=balances();
+  const sched=[...state.schedule].sort((a,c)=>a.date<c.date?-1:a.date>c.date?1:(a.order||0)-(c.order||0));
+  const due=sched.filter(s=>s.date<=t&&typeof s.actual!=="number"&&!s.skipped);
+  const justLogged=sched.filter(s=>(typeof s.actual==="number"||s.skipped)&&s.loggedAt&&iso(new Date(s.loggedAt))===t);
+  const upcoming=sched.filter(s=>s.date>t&&s.date<=addDays(t,21));
+  const openCard=sched.filter(s=>s.cat==="card"&&typeof s.actual!=="number"&&!s.skipped);
+  const payoff=openCard.length?openCard[openCard.length-1].date:null;
+  const food=spent("food",wk.start,wk.end), foodLeft=st.foodWeekly-food, foodDays=diffDays(t,wk.end)+1;
+  const gasUsed=spent("gas",per.start,per.end), gasLeft=st.gasPerPeriod-gasUsed;
+  const out=[];
+
+  // Balances
+  const M=v=>state.showBal?money(v):`<span class="mask">$••••</span>`;
+  out.push(section({key:"balances",title:"Balances",body:`
+    <div class="balances" data-toggle-bal role="button" tabindex="0" aria-pressed="${state.showBal}" aria-label="${state.showBal?"Hide balances":"Show balances"}">
+      <div class="bal"><span class="label">Checking</span><span class="num">${M(b.chk)}</span></div>
+      <div class="bal"><span class="label">Card owed</span><span class="num ${state.showBal&&b.card>0.005?"bad":state.showBal?"in":""}">${M(Math.max(0,b.card))}</span></div>
+      <div class="bal"><span class="label">Savings</span><span class="num">${M(b.sav)}</span></div>
+    </div>
+    <div class="meter"><div class="meter-top">
+      <span class="small muted reveal" data-toggle-small role="button" tabindex="0">Card paid down from ${state.showSmall?`<span class="num strong">${money(st.startCard)}</span> <span style="font-size:10.5px">(${(st.apr*100).toFixed(2)}% APR)</span>`:`<span class="mask">$••••</span>`}</span>
+      <span class="small muted">${b.card<=0.005?"Paid off":payoff?"Payoff planned "+short(payoff):""}</span></div>
+      <div class="bar"><i style="width:${Math.max(0,Math.min(100,(1-b.card/st.startCard)*100))}%"></i></div></div>`}));
+
+  // Notices
+  if(dow(t)==="Thu"&&addDays(t,1)===nextPayday) out.push(`<div class="notice info"><div class="notice-head">Your paycheck lands tonight around 11pm.</div><p class="small">Tomorrow, log what you actually earned, then make the card payment and savings transfer.</p></div>`);
+  const cuKey=t+":"+justLogged.map(s=>s.id).join(",");
+  if(due.length||(justLogged.length&&getDismissed()!==cuKey)) out.push(`<div class="notice ${due.length?"":"info"}">
+    <div class="notice-head"><span>${due.length?`${plural(due.length,"scheduled item")} to log`:"All caught up"}</span>${due.length?"":`<button class="ghost" data-dismiss="${esc(cuKey)}">Dismiss</button>`}</div>
+    <p class="small">${due.length?"Enter the amount that actually happened. It updates your balances.":"Handled today. Tap Undo or Edit if something's off."}</p>
+    <ul class="list">${[...due,...justLogged].map(s=>itemRow(s,"due")).join("")}</ul></div>`);
+
+  // Daily entry
+  out.push(section({key:"food",title:"Today's food",meta:`<span class="num strong">${money(spent("food",t,t))}</span> today`,body:`
+    ${quickForm("food","food")}
+    <p class="small muted">${foodLeft>=0?`<span class="num strong">${money(foodLeft)}</span> left this week · <span class="num strong">${money(foodLeft/foodDays)}</span>/day for ${plural(foodDays,"day")}`:`Over this week's ${money(st.foodWeekly)} by <span class="num bad">${money(-foodLeft)}</span>.`}</p>`}));
+  out.push(section({key:"gas",title:"Gas",meta:`<span class="num strong">${money(spent("gas",t,t))}</span> today`,body:`
+    ${quickForm("gas","gas")}
+    <p class="small muted">${gasLeft>=0?`<span class="num strong">${money(gasLeft)}</span> left until payday ${short(nextPayday)} · ${money(st.gasPerPeriod)} per paycheck`:`Over this pay period's ${money(st.gasPerPeriod)} by <span class="num bad">${money(-gasLeft)}</span>.`}</p>`}));
+
+  // Budgets
+  const other=spent("other",per.start,per.end);
+  out.push(section({key:"week",title:"This week",meta:`${short(wk.start)} – ${short(wk.end)}`,body:`
+    ${meter("Food","groceries + eating out",food,st.foodWeekly)}
+    <p class="small muted" style="margin-top:-6px">${foodLeft>=0?`That's <span class="num strong">${money(foodLeft/foodDays)}</span> a day for the ${plural(foodDays,"day")} left.`:`Over by ${money(-foodLeft)}. Take it out of next week's food.`}</p>
+    <div class="sub-head">This pay period</div>
+    ${meter("Gas","",gasUsed,st.gasPerPeriod)}
+    ${meter("Subscriptions",`$${st.subsPerPeriod*2}/mo`,spent("subs",per.start,per.end),st.subsPerPeriod)}
+    ${other?`<div class="meter-top"><b>Other spending</b><span class="num small">${money(other)}</span></div>`:""}`}));
+
+  // Schedule: collapsed it shows only the next item; open it shows three weeks plus tools.
+  out.push(section({key:"upcoming",title:"Coming up",peek:true,meta:`<span class="closed-only">Next up</span><span class="open-only">Next 3 weeks</span>`,body:`
+    ${upcoming.length?`<ul class="list">${upcoming.map((s,i)=>itemRow(s,"up",i?"more":"")).join("")}</ul>`:`<p class="small muted">Nothing scheduled in the next three weeks.</p>`}
+    <details class="open-only"><summary>Add a scheduled item</summary>
+      <form class="form-grid" id="addSched" style="margin-top:10px">
+        <label>Date<input id="scDate" type="date" required value="${addDays(t,1)}"></label>
+        <label>Planned amount<input id="scAmt" type="number" inputmode="decimal" step="0.01" min="0" required></label>
+        <label>Category<select id="scCat">${Object.keys(CATS).map(c=>`<option value="${c}">${CATS[c]}</option>`).join("")}</select></label>
+        <label>What<input id="scTitle" type="text" maxlength="60" required placeholder="Card payment"></label>
+        <div class="full"><button class="primary" type="submit">Schedule it</button></div>
+      </form></details>
+    <details class="open-only"><summary>Full schedule and logged items</summary><ul class="list" style="margin-top:6px">${sched.map(s=>itemRow(s,"all")).join("")}</ul></details>`}));
+
+  // Extra
+  const recent=[...state.txns].sort((a,c)=>(c.date+(c.createdAt||"")).localeCompare(a.date+(a.createdAt||""))).slice(0,30);
+  out.push(`<div class="extra-zone"><div><div class="label">Extra</div><p class="small muted">Manual entries: anything not on the schedule, like extra shifts or other spending.</p></div>
+    ${section({key:"manual",title:"Manual log spending",variant:"extra",body:`
+      <form class="form-grid" id="addTxn">
+        <label>Amount<input id="txAmt" type="number" inputmode="decimal" step="0.01" min="0" required placeholder="12.50"></label>
+        <label>Category<select id="txCat">${["food","gas","subs","other","income","card","savings","charge"].map(c=>`<option value="${c}">${CATS[c]}</option>`).join("")}</select></label>
+        <label>Date<input id="txDate" type="date" value="${t}" required></label>
+        <label>Note<input id="txNote" type="text" maxlength="80" placeholder="Trader Joe's"></label>
+        <div class="full"><button class="primary" type="submit">Add</button><span class="small muted">Extra shift pay goes under Income.</span></div>
+      </form>`})}
+    ${section({key:"backup",title:"Backup & account",variant:"extra",body:`
+      <p class="small muted">Your data syncs to your Supabase account and is cached on this phone. An occasional backup file is still a good idea.${lastBackup()?` Last export: ${lastBackup()}.`:""}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-export>Export backup</button><label class="file-btn"><input id="importFile" type="file" accept="application/json,.json" hidden>Import backup</label><button data-signout>Sign out</button></div>`})}
+    ${section({key:"entries",title:"Your entries",variant:"extra",meta:recent.length?`${state.txns.length} ${state.txns.length===1?"entry":"entries"}`:"",body:recent.length?`<ul class="list">${recent.map(entryRow).join("")}</ul>`:`<p class="small muted">Nothing logged yet. Food and gas you add at the top show up here too.</p>`})}
+  </div>`);
+
+  // Rebuild while keeping anything half-typed and the focused field.
+  const keep={};document.querySelectorAll("#status input[id]:not([type=file]),#status select[id]").forEach(i=>keep[i.id]=i.value);
+  const focusId=document.activeElement?.closest?.("#status")?document.activeElement.id:null;
+  $("#status").outerHTML=`<div id="status" style="display:grid;gap:16px">${out.join("")}</div>`;
+  for(const id in keep){const el=document.getElementById(id);if(el)el.value=keep[id]}
+  if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
+}
+
+/* ---------- Actions ---------- */
+
+async function write(fn,ok){
+  if(!db){toast("Can't save right now. Reload the page and try again.");return}
+  try{await fn();if(ok)toast(ok)}catch(e){toast(e?.code==="quota_exceeded"?"Storage is full. Delete old entries.":"Couldn't save. Try again.")}
+}
+function toggleSection(key){
+  const sec=document.querySelector(`section[data-key="${key}"]`); if(!sec) return;
+  collapsed.has(key)?collapsed.delete(key):collapsed.add(key);
+  // Closing Balances re-hides every amount it revealed.
+  if(key==="balances"&&collapsed.has(key)&&(state.showBal||state.showSmall)){state.showBal=state.showSmall=false;render();return}
+  sec.toggleAttribute("data-collapsed",collapsed.has(key));
+  sec.querySelector(".sec-head").setAttribute("aria-expanded",String(!collapsed.has(key)));
+}
+
+document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches?.("[role=button]")){e.preventDefault();e.target.click()}});
+document.addEventListener("click",e=>{
+  const at=sel=>e.target.closest(sel);
+  let el;
+  if(el=at("[data-collapse]")) return toggleSection(el.dataset.collapse);
+  if(at("[data-toggle-bal]")){state.showBal=!state.showBal;state.showSmall=state.showBal;return render()}
+  if(at("[data-toggle-small]")){state.showSmall=!state.showSmall;return render()}
+  if(at("[data-cancel]")){state.editing=null;return render()}
+  if(el=at("[data-dismiss]")){setDismissed(el.dataset.dismiss);return render()}
+  if(el=at("[data-edit]")){state.editing=el.dataset.edit;render();document.querySelector(`[data-log="${CSS.escape(state.editing)}"]`)?.previousElementSibling?.focus();return}
+  if(el=at("[data-log]")){
+    const v=cents(el.closest("li")?.querySelector("input")?.value);
+    if(!(v>=0)) return toast("Enter an amount first");
+    state.editing=null;
+    return write(()=>db.doc("schedule/"+el.dataset.log).update({actual:v,skipped:false,loggedAt:new Date().toISOString()}),"Logged");
+  }
+  if(el=at("[data-skip]")){state.editing=null;return write(()=>db.doc("schedule/"+el.dataset.skip).update({skipped:true,loggedAt:new Date().toISOString()}),"Dismissed. It won't count toward your balances.")}
+  if(el=at("[data-unskip]")){return write(()=>db.doc("schedule/"+el.dataset.unskip).update({skipped:false}),"Restored")}
+  if(el=at("[data-unlog]")){state.editing=null;return write(()=>db.doc("schedule/"+el.dataset.unlog).update({actual:null}),"Marked as not done")}
+  if(el=at("[data-del]")){
+    const id=el.dataset.del;
+    if(state.armed===id){state.armed=null;return write(()=>db.doc("txns/"+id).delete(),"Deleted")}
+    state.armed=id;render();clearTimeout(state.armTimer);state.armTimer=setTimeout(()=>{state.armed=null;render()},4000);
+  }
+});
+document.addEventListener("submit",e=>{
+  e.preventDefault();
+  const f=e.target,now=new Date().toISOString();
+  if(f.classList.contains("quick")){
+    const cat=f.dataset.cat,amount=cents(f.querySelector(".q-amt").value),note=f.querySelector(".q-note").value.trim();
+    if(!(amount>0)) return toast("Enter what you spent");
+    f.reset();
+    write(()=>db.collection("txns").add({amount,cat,date:today(),note:note||CATS[cat],createdAt:now}),`Added ${money(amount)} · ${CATS[cat]}`);
+  } else if(f.id==="addTxn"){
+    const amount=cents($("#txAmt").value); if(!(amount>0)) return;
+    const data={amount,cat:$("#txCat").value,date:$("#txDate").value||today(),note:$("#txNote").value.trim(),createdAt:now};
+    f.reset();$("#txDate").value=today();
+    write(()=>db.collection("txns").add(data),`Added ${money(amount)} · ${CATS[data.cat]}`);
+  } else if(f.id==="addSched"){
+    const planned=cents($("#scAmt").value); if(!(planned>=0)) return;
+    const date=$("#scDate").value,id=date+"-"+Math.random().toString(36).slice(2,8);
+    const data={date,planned,cat:$("#scCat").value,title:$("#scTitle").value.trim(),actual:null,order:9};
+    f.reset();
+    write(()=>db.doc("schedule/"+id).set(data),"Scheduled");
+  }
+});
+
+// ---- Your Supabase project. The anon key is meant to be public: row-level security means only your login can touch your rows. ----
+const SUPABASE_URL="https://htmhaucwkxphpswmpyxb.supabase.co", SUPABASE_ANON_KEY="sb_publishable_4DwQ0eLlSkUgkHVONWUO2w_dYWTyxgf";
+const sb=window.supabase&&!SUPABASE_URL.startsWith("__")?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY):null;
+
+function setSync(s){const el=$("#sync");if(!el)return;el.dataset.s=s;el.textContent={synced:"Synced",saving:"Saving…",offline:"Offline · changes will sync"}[s]||""}
+
+// Cloud store: the same doc/collection calls the page always made. Writes show up on the phone
+// instantly, then upload to Supabase in order; anything done offline uploads when you're back online.
+function cloudStore(userId){
+  const CK="mjf-cache-"+userId,QK="mjf-queue-"+userId;
+  const load=k=>{try{return JSON.parse(localStorage.getItem(k))}catch{return null}};
+  const keep=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+  let data=load(CK),queue=load(QK)||[],flushing=false;
+  const store={loaded:!!data};data=data||{};
+  const subs=new Set(),col=(d,c)=>d[c]||(d[c]={});
+  const notify=()=>subs.forEach(f=>f());
+  const snap=(id,d)=>({id,exists:!!d,data:()=>d});
+  const listen=run=>{subs.add(run);run();return()=>subs.delete(run)};
+  const apply=(d,op)=>{if(op.op==="delete")delete col(d,op.c)[op.id];else col(d,op.c)[op.id]=op.data};
+  const commit=op=>{apply(data,op);queue.push(op);keep(CK,data);keep(QK,queue);notify();flush()};
+  async function flush(){
+    if(flushing)return;flushing=true;
+    try{
+      while(queue.length){
+        setSync("saving");
+        const op=queue[0];
+        const {error}=op.op==="delete"
+          ?await sb.from("docs").delete().eq("collection",op.c).eq("id",op.id)
+          :await sb.from("docs").upsert({user_id:userId,collection:op.c,id:op.id,data:op.data,updated_at:new Date().toISOString()});
+        if(error)throw error;
+        queue.shift();keep(QK,queue);
+      }
+      setSync("synced");
+    }catch{setSync("offline")}
+    finally{flushing=false}
+  }
+  store.pull=async()=>{
+    await flush();
+    if(queue.length)return;
+    const {data:rows,error}=await sb.from("docs").select("collection,id,data").limit(10000);
+    if(error){setSync("offline");return}
+    const fresh={};for(const r of rows)col(fresh,r.collection)[r.id]=r.data;
+    for(const op of queue)apply(fresh,op); // keep anything typed while downloading
+    data=fresh;store.loaded=true;keep(CK,data);notify();setSync(queue.length?"saving":"synced");
+  };
+  store.doc=path=>{const [c,id]=path.split("/");return{
+    onSnapshot:f=>listen(()=>f(snap(id,col(data,c)[id]))),
+    set:async d=>commit({op:"upsert",c,id,data:structuredClone(d)}),
+    update:async d=>{if(!col(data,c)[id])throw{code:"invalid_argument"};commit({op:"upsert",c,id,data:{...col(data,c)[id],...d}})},
+    delete:async()=>commit({op:"delete",c,id})}};
+  store.collection=c=>({
+    onSnapshot:f=>listen(()=>f({docs:Object.entries(col(data,c)).map(([id,d])=>snap(id,d))})),
+    add:async d=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);commit({op:"upsert",c,id,data:structuredClone(d)});return{id}}});
+  store.exportJSON=()=>JSON.stringify({app:"mjs-finances",version:1,exportedAt:new Date().toISOString(),data},null,2);
+  store.importJSON=text=>{
+    const o=JSON.parse(text);if(o?.app!=="mjs-finances"||!o.data?.settings?.main)throw new Error("not a backup");
+    for(const c in data)for(const id in data[c])if(!o.data[c]?.[id])queue.push({op:"delete",c,id});
+    for(const c in o.data)for(const id in o.data[c])queue.push({op:"upsert",c,id,data:o.data[c][id]});
+    data=structuredClone(o.data);store.loaded=true;keep(CK,data);keep(QK,queue);notify();flush();
+  };
+  store.forget=()=>{try{localStorage.removeItem(CK);localStorage.removeItem(QK)}catch{}};
+  return store;
+}
+
+const lastBackup=()=>{try{const v=localStorage.getItem("mjs-finances-last-export");return v?new Date(v).toLocaleDateString("en-US",{month:"short",day:"numeric"}):""}catch{return ""}};
+async function exportBackup(){
+  const file=new File([db.exportJSON()],`mjs-finances-backup-${today()}.json`,{type:"application/json"});
+  try{
+    if(navigator.canShare?.({files:[file]})) await navigator.share({files:[file],title:"MJ's Finances backup"});
+    else {const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+    try{localStorage.setItem("mjs-finances-last-export",new Date().toISOString())}catch{}
+    render();toast("Backup exported");
+  }catch(e){if(e?.name!=="AbortError")toast("Couldn't export. Try again.")}
+}
+
+function showAuth(msg=""){
+  setSync("");
+  $("#status").innerHTML=`<div class="card"><div class="sec-body" style="padding-top:16px">
+    <p class="sec-title">Sign in</p>
+    <p class="small muted">Your tracker syncs through your own Supabase account.</p>
+    <form id="authForm" class="form-grid auth">
+      <label>Email<input id="authEmail" type="email" autocomplete="username" required></label>
+      <label>Password<input id="authPass" type="password" autocomplete="current-password" minlength="8" required></label>
+      <div class="full"><button class="primary" type="submit" data-mode="in">Sign in</button><button type="submit" data-mode="up">Create account</button></div>
+    </form>
+    ${msg?`<p class="small">${esc(msg)}</p>`:""}</div></div>`;
+}
+
+document.addEventListener("click",async e=>{
+  if(e.target.closest("[data-export]"))exportBackup();
+  if(e.target.closest("[data-signout]")){db?.forget();await sb.auth.signOut();location.reload()}
+});
+document.addEventListener("change",e=>{
+  if(e.target.id!=="importFile"||!e.target.files?.[0])return;
+  const r=new FileReader();
+  r.onload=()=>{try{db.importJSON(r.result);toast("Backup imported")}catch{toast("That file isn't an MJ's Finances backup.")}};
+  r.readAsText(e.target.files[0]);
+});
+document.addEventListener("submit",async e=>{
+  if(e.target.id!=="authForm")return;
+  const email=$("#authEmail").value.trim(),password=$("#authPass").value,mode=e.submitter?.dataset.mode||"in";
+  e.target.querySelectorAll("button").forEach(b=>b.disabled=true);
+  if(mode==="up"){
+    const {data,error}=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});
+    if(error)return showAuth(error.message);
+    if(!data.session)return showAuth("Account created. Check your email and tap the confirmation link, then come back here and sign in.");
+  } else {
+    const {error}=await sb.auth.signInWithPassword({email,password});
+    if(error)return showAuth(error.message==="Invalid login credentials"?"That email and password don't match.":error.message);
+  }
+});
+
+function start(userId){
+  if(db)return;
+  db=cloudStore(userId);
+  db.doc("settings/main").onSnapshot(s=>{state.settings=s.exists?s.data():null;state.ready.s=true;render()});
+  db.collection("schedule").onSnapshot(q=>{state.schedule=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.sc=true;render()});
+  db.collection("txns").onSnapshot(q=>{state.txns=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.t=true;render()});
+  db.pull().then(render);
+  // Pick up changes from your other devices, and re-render so "today" stays right.
+  window.addEventListener("online",()=>db.pull());
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden){db.pull();render()}});
+  setInterval(()=>{db.pull();render()},60*1000);
+}
+
+(async()=>{
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if(!sb){$("#status").innerHTML=`<p>The app isn't connected to Supabase yet.</p>`;return}
+  // Supabase asks that no other Supabase calls run inside this callback, so start on the next tick.
+  sb.auth.onAuthStateChange((event,session)=>{if(session?.user&&!db)setTimeout(()=>start(session.user.id))});
+  const {data:{session}}=await sb.auth.getSession();
+  if(session?.user)start(session.user.id);else showAuth();
+})();
+</script>
+</body>
+</html>
