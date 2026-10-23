@@ -1,6 +1,8 @@
 # MJ's Finances
 
-A personal budget tracker that installs to the phone's home screen and syncs through Supabase.
+a site to help menwoth my personal financing and daily purchasing and spending decisions.
+
+It's a budget tracker that installs to the phone's home screen and syncs through Supabase.
 
 - `index.html` — the whole app (layout, budgets, schedule, sync)
 - `sw.js` — offline support; bump `VERSION` after changing files so phones pick up updates
