@@ -29,14 +29,13 @@ create table if not exists public.push_log (
 );
 alter table public.push_log enable row level security;
 
--- 3. Every Thursday at 11:07pm Pacific, ask the payday-push function to send alerts.
---    Cron runs in UTC, so this fires at both 6:07 and 7:07 UTC on Friday to cover daylight saving;
---    the function only acts during the 11pm Pacific hour.
+-- 3. Every hour at :07, ask the payday-push function to send whatever alerts are due
+--    (payday, weekly food and gas, custom reminders). The function works in Pacific time.
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net;
 select cron.schedule(
   'mjs-finances-payday-push',
-  '7 6,7 * * 5',
+  '7 * * * *',
   $$ select net.http_post(
        url := 'https://htmhaucwkxphpswmpyxb.supabase.co/functions/v1/payday-push',
        body := '{}'::jsonb,

@@ -1,9 +1,13 @@
-// MJ's Finances push notifications (Supabase Edge Function "payday-push").
+// MJ's Finances push notifications and reminders (Supabase Edge Function "payday-push").
 //
 // Two ways in:
-// - The Thursday cron job (no body). At 11pm Pacific on the night before a payday, it sends each
-//   person one "payday tonight" alert. Any other time it does nothing, and push_log makes sure
-//   the same payday is never sent twice.
+// - The hourly cron job (no body). It sends whatever is due this hour in Pacific time, based on each
+//   person's alert settings (the "reminders" docs the app saves):
+//     payday  Thursday 11pm before each payday (on unless turned off)
+//     food    weekly, on the chosen day and hour
+//     gas     weekly, on the chosen day and hour
+//     c-...   custom: every N days, weeks or months from a start date, at the chosen hour
+//   push_log makes sure nothing is sent twice for the same day.
 // - The app's "Send a test" button ({"test":true} plus the person's login). It sends a test to
 //   that person's devices only.
 //
@@ -37,6 +41,17 @@ function pacific(now = new Date()) {
 }
 const addDays = (day, n) => { const d = new Date(day + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const daysBetween = (a, b) => Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 864e5);
+
+// Custom reminders repeat every N days, weeks or months from their start date.
+function isDue(r, day) {
+  const every = Math.max(1, Number(r.every) || 1), diff = daysBetween(r.start, day);
+  if (!r.start || diff < 0) return false;
+  if (r.unit === "day") return diff % every === 0;
+  if (r.unit === "week") return diff % (7 * every) === 0;
+  const [sy, sm, sd] = r.start.split("-").map(Number), [y, m, d] = day.split("-").map(Number);
+  const months = (y - sy) * 12 + (m - sm), lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return months % every === 0 && d === Math.min(sd, lastDay); // the 31st falls back to the month's last day
+}
 
 async function sendTo(userId, payload) {
   const { data: subs } = await admin.from("push_subscriptions").select("endpoint,subscription").eq("user_id", userId);
@@ -80,17 +95,28 @@ Deno.serve(async (req) => {
   }
 
   const now = pacific();
-  if (now.weekday !== "Thu" || now.hour !== 23) return json({ skipped: "Only runs Thursdays at 11pm Pacific." });
-  const payday = addDays(now.day, 1);
+  const { data: subs } = await admin.from("push_subscriptions").select("user_id");
+  const people = [...new Set((subs ?? []).map((s) => s.user_id))];
   let sent = 0;
-  for (const userId of await paidOn(payday)) {
-    const { error } = await admin.from("push_log").insert({ user_id: userId, kind: "payday", day: payday });
-    if (error) continue; // already sent for this payday
-    sent += await sendTo(userId, {
-      title: "Payday tonight",
-      body: "Your paycheck should be landing about now. Once it's in, log it, then make the card payment and savings transfer.",
-      tag: "payday-" + payday,
-    });
+  const once = async (userId, kind, day, payload) => {
+    const { error } = await admin.from("push_log").insert({ user_id: userId, kind, day });
+    if (!error) sent += await sendTo(userId, payload); // an error means it already went out
+  };
+
+  const payday = addDays(now.day, 1);
+  const paidTomorrow = now.weekday === "Thu" && now.hour === 23 ? await paidOn(payday) : new Set();
+  for (const userId of people) {
+    const { data: rows } = await admin.from("docs").select("id,data").eq("user_id", userId).eq("collection", "reminders");
+    const rem = Object.fromEntries((rows ?? []).map((r) => [r.id, r.data]));
+    if (paidTomorrow.has(userId) && rem.payday?.enabled !== false) {
+      await once(userId, "payday", payday, { title: "Payday tonight", body: "Your paycheck should be landing about now. Once it's in, log it, then make the card payment and savings transfer.", tag: "payday-" + payday });
+    }
+    for (const [id, r] of Object.entries(rem)) {
+      if (!r?.enabled || Number(r.hour) !== now.hour) continue;
+      if (id === "food" && r.day === now.weekday) await once(userId, "food", now.day, { title: "Food check-in", body: "Log anything you've spent on food this week.", tag: "food" });
+      else if (id === "gas" && r.day === now.weekday) await once(userId, "gas", now.day, { title: "Gas check-in", body: "Log any gas you've bought.", tag: "gas" });
+      else if (r.kind === "custom" && isDue(r, now.day)) await once(userId, id, now.day, { title: "Reminder", body: String(r.text || "").slice(0, 120), tag: id });
+    }
   }
-  return json({ payday, sent });
+  return json({ hour: now.hour, sent });
 });

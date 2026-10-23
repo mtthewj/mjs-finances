@@ -57,7 +57,8 @@ h1{font-family:var(--display);font-size:26px;margin:0;letter-spacing:-.01em}
 .head-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .head-main{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
 .page-head .next{text-align:right;font-size:13px;color:var(--muted)}
-.icon-btn{width:36px;height:36px;min-height:36px;padding:0;margin-right:-8px;border:0;background:transparent;display:inline-grid;place-items:center;color:var(--muted);flex:none}
+.head-icons{display:flex;gap:2px;margin-right:-8px}
+.icon-btn{width:36px;height:36px;min-height:36px;padding:0;border:0;background:transparent;display:inline-grid;place-items:center;color:var(--muted);flex:none}
 .icon-btn[aria-expanded=true]{color:var(--ink)}
 
 /* Notifications panel: sits over the page on the same background, no dimming or card. */
@@ -68,6 +69,12 @@ h1{font-family:var(--display);font-size:26px;margin:0;letter-spacing:-.01em}
 @keyframes fade-in{from{opacity:0}}
 .sheet .sub-head{margin-top:14px}
 .push{display:grid;gap:8px}
+.toggle{display:flex;align-items:flex-start;gap:10px;cursor:pointer;line-height:1.35}
+.toggle input{width:20px;height:20px;flex:none;margin:1px 0 0;accent-color:var(--accent);-webkit-appearance:auto;appearance:auto;display:inline-block}
+.rem-row{display:grid;gap:8px}
+.rem-when{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding-left:30px}
+.every{display:grid;grid-template-columns:56px minmax(0,1fr);gap:8px}
+.form-grid .full-col{grid-column:1/-1}
 .push-actions{display:flex;gap:8px;flex-wrap:wrap}
 button[disabled]{opacity:.55;cursor:default}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
@@ -176,7 +183,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
   <header class="page-head">
     <div class="head-top">
       <div class="label" id="periodLabel">&nbsp;</div>
-      <button class="icon-btn" id="notifBtn" data-notif hidden aria-label="Notifications" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+      <div class="head-icons"><button class="icon-btn" id="notifBtn" data-notif hidden aria-label="Notifications" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button><button class="icon-btn" id="gearBtn" data-gear hidden aria-label="Alert settings" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div>
     </div>
     <div class="head-main">
       <div>
@@ -195,7 +202,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
 // Every load starts from the same layout; toggles last until the page is reopened.
 const collapsed=new Set(["balances","week","upcoming","manual","entries","backup"]);
-const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,uid:null,push:"unknown",pushBusy:false};
+const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,gear:false,rem:{},armedRem:null,uid:null,push:"unknown",pushBusy:false};
 let db=null;
 
 const $=s=>document.querySelector(s);
@@ -291,7 +298,7 @@ function render(){
   const t=today(), per=cycle(st.firstPayday,14,t), wk=cycle(st.firstPayday,7,t);
   const nextPayday=addDays(per.start,14), daysToPay=diffDays(t,nextPayday);
   $("#periodLabel").textContent=`Pay period ${short(per.start)} – ${short(per.end)}`;
-  const nb=$("#notifBtn");nb.hidden=false;nb.setAttribute("aria-expanded",String(state.notif));
+  const nb=$("#notifBtn"),gb=$("#gearBtn");nb.hidden=gb.hidden=false;nb.setAttribute("aria-expanded",String(state.notif));gb.setAttribute("aria-expanded",String(state.gear));
   $("#nextPay").innerHTML=`Next deposit<br><b class="num strong">Thu ${short(addDays(nextPayday,-1))}, ~11pm</b><br>${daysToPay<=1?"tonight or tomorrow":plural(daysToPay,"day")}`;
 
   const b=balances();
@@ -383,23 +390,27 @@ function render(){
     const dayName=d=>d===t?"Today":d===addDays(t,-1)?"Yesterday":`${dow(d)}, ${short(d)}`;
     out.push(`<div class="sheet-back"><div class="sheet ${state.notifEnter?"enter":""}" role="dialog" aria-modal="true" aria-labelledby="notifTitle">
       <div class="sheet-head"><h2 id="notifTitle">Notifications</h2><button class="ghost" id="notifClose" data-notif-close>Close</button></div>
-      ${pushBlock()}
-      <div class="sub-head">History</div>
       <p class="small muted">Scheduled items you've logged or dismissed, newest first. Tap Edit or Undo to change one.</p>
       <div>${handled.length
         ?groups.map(g=>`<div class="sub-head">${dayName(g.d)}</div><ul class="list">${g.items.map(s=>itemRow(s,"hist")).join("")}</ul>`).join("")
         :`<p class="small muted">Nothing yet. When you log or dismiss a scheduled item, it shows up here.</p>`}</div>
     </div></div>`);
     state.notifEnter=false;
+  } else if(state.gear){
+    out.push(`<div class="sheet-back"><div class="sheet ${state.notifEnter?"enter":""}" role="dialog" aria-modal="true" aria-labelledby="gearTitle">
+      <div class="sheet-head"><h2 id="gearTitle">Alert settings</h2><button class="ghost" id="notifClose" data-notif-close>Close</button></div>
+      ${settingsBody()}
+    </div></div>`);
+    state.notifEnter=false;
   }
-  document.documentElement.classList.toggle("noscroll",state.notif);
+  document.documentElement.classList.toggle("noscroll",state.notif||state.gear);
 
   // Rebuild while keeping anything half-typed, the focused field and the panel's scroll spot.
   const keep={};document.querySelectorAll("#status input[id]:not([type=file]),#status select[id]").forEach(i=>keep[i.id]=i.value);
   const focusId=document.activeElement?.closest?.("#status")?document.activeElement.id:null;
   const sheetTop=document.querySelector(".sheet")?.scrollTop||0;
   $("#status").outerHTML=`<div id="status" style="display:grid;gap:16px">${out.join("")}</div>`;
-  if(state.notif)document.querySelector(".sheet").scrollTop=sheetTop;
+  if(state.notif||state.gear)document.querySelector(".sheet").scrollTop=sheetTop;
   for(const id in keep){const el=document.getElementById(id);if(el)el.value=keep[id]}
   if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
 }
@@ -434,10 +445,10 @@ function pushBlock(){
     unknown:`<p class="small muted">Checking this device…</p>`,
     unsupported:`<p class="small muted">Alerts work in the Home Screen app. Open MJ's Finances from your Home Screen to turn them on.</p>`,
     denied:`<p class="small muted">Alerts are blocked for this app. Turn them on in Settings › Notifications › MJ's Finances, then come back here.</p>`,
-    off:`<p class="small muted">Get an alert on payday Thursdays around 11pm, when your paycheck lands.</p><div class="push-actions"><button data-push-on ${busy}>Turn on alerts</button></div>`,
-    on:`<p class="small muted">Payday alerts are on for this device.</p><div class="push-actions"><button data-push-test ${busy}>Send a test</button><button class="ghost" data-push-off ${busy}>Turn off</button></div>`,
+    off:`<p class="small muted">Alerts are off on this device. Turn them on to get the reminders below.</p><div class="push-actions"><button data-push-on ${busy}>Turn on alerts</button></div>`,
+    on:`<p class="small muted">Alerts are on for this device.</p><div class="push-actions"><button data-push-test ${busy}>Send a test</button><button class="ghost" data-push-off ${busy}>Turn off</button></div>`,
   }[state.push];
-  return `<div class="push"><div class="sub-head">Payday alerts</div>${body}</div>`;
+  return `<div class="push"><div class="sub-head">This device</div>${body}</div>`;
 }
 async function refreshPush(){
   try{
@@ -465,7 +476,7 @@ async function enablePush(){
     const reg=await navigator.serviceWorker.ready;
     const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:keyBytes(VAPID_PUBLIC_KEY)});
     await saveSub(sub);
-    state.push="on";toast("Payday alerts are on");
+    state.push="on";toast("Alerts are on");
   }catch(e){toast(setupMissing(e)?"Alerts need the one-time Supabase setup first.":"Couldn't turn on alerts. Try again.")}
   finally{state.pushBusy=false;render()}
 }
@@ -483,19 +494,64 @@ async function disablePush(){
   try{
     const sub=await (await navigator.serviceWorker.ready).pushManager.getSubscription();
     if(sub){await sb.from("push_subscriptions").delete().eq("endpoint",sub.endpoint);await sub.unsubscribe()}
-    state.push="off";toast("Payday alerts are off on this device");
+    state.push="off";toast("Alerts are off on this device");
   }catch{toast("Couldn't turn off alerts. Try again.")}
   finally{state.pushBusy=false;render()}
 }
 
-function closeNotif(){state.notif=false;state.editing=null;render();$("#notifBtn")?.focus({preventScroll:true})}
+/* ---------- Alert settings: which reminders the server sends. Stored with your data under "reminders". ---------- */
+
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],DAY_NAMES=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const HOURS=Array.from({length:18},(_,i)=>i+6); // 6am to 11pm
+const hourName=h=>`${h%12||12} ${h<12?"AM":"PM"}`;
+const REM_DEFAULTS={payday:{enabled:true},food:{enabled:false,day:"Thu",hour:20},gas:{enabled:false,day:"Sun",hour:18}};
+const rem=id=>({...REM_DEFAULTS[id],...state.rem[id]});
+const opts=(list,cur,label=x=>x)=>list.map(v=>`<option value="${v}" ${String(v)===String(cur)?"selected":""}>${label(v)}</option>`).join("");
+function everyText(r){
+  const unit=r.every===1?r.unit:r.unit+"s";
+  return `${r.every===1?"Every "+unit:`Every ${r.every} ${unit}`} from ${short(r.start)}`;
+}
+function weeklyRow(id,label,note){
+  const r=rem(id);
+  return `<div class="rem-row"><label class="toggle"><input type="checkbox" data-rem-toggle="${id}" ${r.enabled?"checked":""}><span><b>${label}</b><span class="small muted"> ${note}</span></span></label>
+    <div class="rem-when"><select id="rem-${id}-day" data-rem-field="${id}.day" aria-label="${label} day">${opts(DAYS,r.day,d=>DAY_NAMES[DAYS.indexOf(d)])}</select><select id="rem-${id}-hour" data-rem-field="${id}.hour" aria-label="${label} time">${opts(HOURS,r.hour,hourName)}</select></div></div>`;
+}
+function settingsBody(){
+  const custom=Object.entries(state.rem).filter(([,r])=>r.kind==="custom").sort((a,c)=>a[1].start.localeCompare(c[1].start));
+  const off=state.push!=="on"&&state.push!=="unknown"?`<p class="small muted">These only reach you once alerts are on for this device.</p>`:"";
+  return `${pushBlock()}
+    <div class="sub-head">Payday</div>${off}
+    <label class="toggle"><input type="checkbox" data-rem-toggle="payday" ${rem("payday").enabled?"checked":""}><span><b>Payday alert</b><span class="small muted"> Thursday around 11pm, when your paycheck lands</span></span></label>
+    <div class="sub-head">Weekly log reminders</div>
+    ${weeklyRow("food","Food","log what you spent on food")}
+    ${weeklyRow("gas","Gas","log any gas you bought")}
+    <div class="sub-head">Custom reminders</div>
+    ${custom.length?`<ul class="list">${custom.map(([id,r])=>`<li class="item"><span class="date">${hourName(r.hour)}</span><div class="title">${esc(r.text)}<div class="sub">${everyText(r)}</div></div>
+      <div class="amt"><div class="actions"><button class="ghost ${state.armedRem===id?"danger":""}" data-rem-del="${esc(id)}">${state.armedRem===id?"Tap again to delete":"Delete"}</button></div></div></li>`).join("")}</ul>`:`<p class="small muted">None yet.</p>`}
+    <form class="form-grid" id="addRem">
+      <label class="full-col">Message<input id="remText" type="text" maxlength="80" required placeholder="Pay the phone bill"></label>
+      <label>Every<span class="every"><input id="remEvery" type="number" inputmode="numeric" min="1" max="52" value="1" required><select id="remUnit">${opts(["day","week","month"],"week",u=>u+"s")}</select></span></label>
+      <label>At<select id="remHour">${opts(HOURS,9,hourName)}</select></label>
+      <label>Starting<input id="remStart" type="date" required value="${today()}"></label>
+      <div class="full"><button type="submit">Add reminder</button></div>
+    </form>`;
+}
+function saveRem(id,patch,ok){return write(()=>db.doc("reminders/"+id).set({...rem(id),...state.rem[id],...patch}),ok)}
+
+function closeNotif(){const was=state.gear?"#gearBtn":"#notifBtn";state.notif=state.gear=false;state.editing=null;render();$(was)?.focus({preventScroll:true})}
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"&&state.notif)return closeNotif();
+  if(e.key==="Escape"&&(state.notif||state.gear))return closeNotif();
   if((e.key==="Enter"||e.key===" ")&&e.target.matches?.("[role=button]")){e.preventDefault();e.target.click()}});
 document.addEventListener("click",e=>{
   const at=sel=>e.target.closest(sel);
   let el;
-  if(at("[data-notif]")){if(state.notif)return closeNotif();state.notif=state.notifEnter=true;state.editing=null;render();refreshPush();return $("#notifClose")?.focus({preventScroll:true})}
+  if(at("[data-notif]")){if(state.notif)return closeNotif();state.gear=false;state.notif=state.notifEnter=true;state.editing=null;render();return $("#notifClose")?.focus({preventScroll:true})}
+  if(at("[data-gear]")){if(state.gear)return closeNotif();state.notif=false;state.gear=state.notifEnter=true;state.editing=null;render();refreshPush();return $("#notifClose")?.focus({preventScroll:true})}
+  if(el=at("[data-rem-del]")){
+    const id=el.dataset.remDel;
+    if(state.armedRem===id){state.armedRem=null;return write(()=>db.doc("reminders/"+id).delete(),"Reminder deleted")}
+    state.armedRem=id;render();clearTimeout(state.remTimer);state.remTimer=setTimeout(()=>{state.armedRem=null;render()},4000);return;
+  }
   if(at("[data-notif-close]")||e.target.classList?.contains("sheet-back")) return closeNotif();
   if(at("[data-push-on]")) return enablePush();
   if(at("[data-push-test]")) return testPush();
@@ -521,6 +577,11 @@ document.addEventListener("click",e=>{
     state.armed=id;render();clearTimeout(state.armTimer);state.armTimer=setTimeout(()=>{state.armed=null;render()},4000);
   }
 });
+document.addEventListener("change",e=>{
+  const el=e.target;
+  if(el.dataset.remToggle){const id=el.dataset.remToggle;return saveRem(id,{enabled:el.checked},el.checked?"Reminder on":"Reminder off")}
+  if(el.dataset.remField){const [id,f]=el.dataset.remField.split(".");return saveRem(id,{[f]:f==="hour"?Number(el.value):el.value},"Saved")}
+});
 document.addEventListener("submit",e=>{
   e.preventDefault();
   const f=e.target,now=new Date().toISOString();
@@ -534,6 +595,12 @@ document.addEventListener("submit",e=>{
     const data={amount,cat:$("#txCat").value,date:$("#txDate").value||today(),note:$("#txNote").value.trim(),createdAt:now};
     f.reset();$("#txDate").value=today();
     write(()=>db.collection("txns").add(data),`Added ${money(amount)} · ${CATS[data.cat]}`);
+  } else if(f.id==="addRem"){
+    const text=$("#remText").value.trim(),every=Math.max(1,Math.round(Number($("#remEvery").value)||1));
+    if(!text) return toast("Write what the reminder should say");
+    const data={kind:"custom",enabled:true,text,every,unit:$("#remUnit").value,hour:Number($("#remHour").value),start:$("#remStart").value||today()};
+    f.reset();$("#remStart").value=today();$("#remEvery").value=1;
+    write(()=>db.doc("reminders/c-"+Date.now().toString(36)).set(data),"Reminder added");
   } else if(f.id==="addSched"){
     const planned=cents($("#scAmt").value); if(!(planned>=0)) return;
     const date=$("#scDate").value,id=date+"-"+Math.random().toString(36).slice(2,8);
@@ -681,6 +748,7 @@ function start(userId){
   db=cloudStore(userId);state.uid=userId;
   db.doc("settings/main").onSnapshot(s=>{state.settings=s.exists?s.data():null;state.ready.s=true;render()});
   db.collection("schedule").onSnapshot(q=>{state.schedule=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.sc=true;render()});
+  db.collection("reminders").onSnapshot(q=>{state.rem=Object.fromEntries(q.docs.map(d=>[d.id,d.data()]));if(state.gear)render()});
   db.collection("txns").onSnapshot(q=>{state.txns=q.docs.map(d=>({id:d.id,...d.data()}));state.ready.t=true;render()});
   const sync=()=>db.pull().then(ok=>{if(ok)applyPlanUpdates()});
   sync().then(render);
