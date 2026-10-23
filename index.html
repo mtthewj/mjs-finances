@@ -57,15 +57,16 @@ h1{font-family:var(--display);font-size:26px;margin:0;letter-spacing:-.01em}
 .head-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .head-main{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
 .page-head .next{text-align:right;font-size:13px;color:var(--muted)}
-.icon-btn{width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;display:inline-grid;place-items:center;color:var(--muted);flex:none}
-.icon-btn[aria-expanded=true]{color:var(--accent);border-color:var(--accent)}
+.icon-btn{width:36px;height:36px;min-height:36px;padding:0;margin-right:-8px;border:0;background:transparent;display:inline-grid;place-items:center;color:var(--muted);flex:none}
+.icon-btn[aria-expanded=true]{color:var(--ink)}
 
-/* Notifications panel: slides over the page from the right. */
-.sheet-back{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;justify-content:flex-end}
-.sheet{width:min(440px,100%);height:100%;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);display:grid;align-content:start;gap:12px;box-shadow:-8px 0 24px rgba(0,0,0,.12);
+/* Notifications panel: sits over the page on the same background, no dimming or card. */
+.sheet-back{position:fixed;inset:0;z-index:20;display:flex;justify-content:flex-end}
+.sheet{width:min(440px,100%);height:100%;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);display:grid;align-content:start;gap:12px;border-left:1px solid var(--line);
   padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(32px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
-.sheet.enter{animation:slide-in .18s ease-out}
-@keyframes slide-in{from{transform:translateX(24px);opacity:0}}
+.sheet.enter{animation:fade-in .12s ease-out}
+@keyframes fade-in{from{opacity:0}}
+.sheet .sub-head{margin-top:14px}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
 .sheet-head h2{font-family:var(--display);font-size:22px;margin:0}
 html.noscroll,html.noscroll body{overflow:hidden}
@@ -191,7 +192,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
 // Every load starts from the same layout; toggles last until the page is reopened.
 const collapsed=new Set(["balances","week","upcoming","manual","entries","backup"]);
-const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false};
+const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0};
 let db=null;
 
 const $=s=>document.querySelector(s);
@@ -340,8 +341,9 @@ function render(){
     ${meter("Subscriptions",`$${st.subsPerPeriod*2}/mo`,spent("subs",per.start,per.end),st.subsPerPeriod)}
     ${other?`<div class="meter-top"><b>Other spending</b><span class="num small">${money(other)}</span></div>`:""}`}));
 
-  // Schedule: collapsed it shows only the next item; open it shows three weeks plus tools.
-  out.push(section({key:"upcoming",title:"Coming up",peek:true,meta:`<span class="closed-only">Next up</span><span class="open-only">Next 3 weeks</span>`,body:`
+  // Schedule opens in three steps: closed, then just the next item, then three weeks plus tools.
+  state.upLevel<2?collapsed.add("upcoming"):collapsed.delete("upcoming");
+  out.push(section({key:"upcoming",title:"Coming up",peek:state.upLevel===1,meta:["","Next up","Next 3 weeks"][state.upLevel],body:`
     ${upcoming.length?`<ul class="list">${upcoming.map((s,i)=>itemRow(s,"up",i?"more":"")).join("")}</ul>`:`<p class="small muted">Nothing scheduled in the next three weeks.</p>`}
     <details class="open-only"><summary>Add a scheduled item</summary>
       <form class="form-grid" id="addSched" style="margin-top:10px">
@@ -379,9 +381,9 @@ function render(){
     out.push(`<div class="sheet-back"><div class="sheet ${state.notifEnter?"enter":""}" role="dialog" aria-modal="true" aria-labelledby="notifTitle">
       <div class="sheet-head"><h2 id="notifTitle">Notifications</h2><button class="ghost" id="notifClose" data-notif-close>Close</button></div>
       <p class="small muted">Scheduled items you've logged or dismissed, newest first. Tap Edit or Undo to change one.</p>
-      <div class="card"><div class="sec-body" style="padding-top:12px">${handled.length
+      <div>${handled.length
         ?groups.map(g=>`<div class="sub-head">${dayName(g.d)}</div><ul class="list">${g.items.map(s=>itemRow(s,"hist")).join("")}</ul>`).join("")
-        :`<p class="small muted">Nothing yet. When you log or dismiss a scheduled item, it shows up here.</p>`}</div></div>
+        :`<p class="small muted">Nothing yet. When you log or dismiss a scheduled item, it shows up here.</p>`}</div>
     </div></div>`);
     state.notifEnter=false;
   }
@@ -404,6 +406,7 @@ async function write(fn,ok){
   try{await fn();if(ok)toast(ok)}catch(e){toast(e?.code==="quota_exceeded"?"Storage is full. Delete old entries.":"Couldn't save. Try again.")}
 }
 function toggleSection(key){
+  if(key==="upcoming"){state.upLevel=(state.upLevel+1)%3;return render()}
   const sec=document.querySelector(`section[data-key="${key}"]`); if(!sec) return;
   collapsed.has(key)?collapsed.delete(key):collapsed.add(key);
   // Closing Balances re-hides every amount it revealed.
@@ -612,7 +615,12 @@ function start(userId){
 }
 
 (async()=>{
-  if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  // New versions load on their own: check whenever the app comes back to the front, and reload once the new one takes over.
+  if("serviceWorker" in navigator){
+    const hadSW=!!navigator.serviceWorker.controller;let reloading=false;
+    navigator.serviceWorker.register("sw.js").then(reg=>document.addEventListener("visibilitychange",()=>{if(!document.hidden)reg.update().catch(()=>{})})).catch(()=>{});
+    navigator.serviceWorker.addEventListener("controllerchange",()=>{if(hadSW&&!reloading){reloading=true;location.reload()}});
+  }
   if(!sb){$("#status").innerHTML=`<p>The app isn't connected to Supabase yet.</p>`;return}
   // Supabase asks that no other Supabase calls run inside this callback, so start on the next tick.
   sb.auth.onAuthStateChange((event,session)=>{if(session?.user&&!db)setTimeout(()=>start(session.user.id))});
