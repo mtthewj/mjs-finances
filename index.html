@@ -200,7 +200,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <script>
 const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
 // Every load starts from the same layout; toggles last until the page is reopened.
-const collapsed=new Set(["balances","upcoming","paycheck","month","entries","backup"]);
+const collapsed=new Set(["balances","upcoming","paycheck","month","backup"]);
 const SPEND=["food","gas","subs","other"];
 const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,gear:false,rem:{},armedRem:null,lastCat:"food",uid:null,push:"unknown",pushBusy:false};
 let db=null;
@@ -353,8 +353,7 @@ function render(){
       <label>Note<input id="txNote" type="text" maxlength="80" placeholder="Trader Joe's"></label>
       <label>Date<input id="txDate" type="date" value="${t}" required></label>
       <div class="full"><button class="primary" type="submit">Add</button><span class="small muted">Extra shift pay goes under Income.</span></div>
-    </form>
-    ${todayList.length?`<div class="sub-head">Today</div><ul class="list">${todayList.map(entryRow).join("")}</ul>`:""}`}));
+    </form>`}));
 
   // Spending: each category's monthly budget averaged down to a week (x12/52) and a paycheck (x12/26).
   const monthly={food:st.foodWeekly*52/12,gas:st.gasPerPeriod*2,subs:st.subsPerPeriod*2};
@@ -373,13 +372,15 @@ function render(){
       <div class="meter-top"><b>Total</b><span class="num small">${money(used+other)} of ${money(budget)}</span></div>`}));
   }
 
-  // Extra
+  // Log: every journal entry, newest first.
   const recent=[...state.txns].sort((a,c)=>(c.date+(c.createdAt||"")).localeCompare(a.date+(a.createdAt||""))).slice(0,30);
-  out.push(`<div class="extra-zone"><div><div class="label">Extra</div><p class="small muted">Backup, account and every journal entry you've made.</p></div>
+  out.push(section({key:"log",title:"Log",meta:state.txns.length?plural(state.txns.length,"entry").replace("entrys","entries"):"",body:recent.length?`<ul class="list">${recent.map(entryRow).join("")}</ul>${state.txns.length>30?`<p class="small muted">Showing the latest 30.</p>`:""}`:`<p class="small muted">Nothing logged yet. Journal entries show up here.</p>`}));
+
+  // Extra
+  out.push(`<div class="extra-zone"><div><div class="label">Extra</div><p class="small muted">Backup and account.</p></div>
     ${section({key:"backup",title:"Backup & account",variant:"extra",body:`
       <p class="small muted">Your data syncs to your Supabase account and is cached on this phone. An occasional backup file is still a good idea.${lastBackup()?` Last export: ${lastBackup()}.`:""}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-export>Export backup</button><label class="file-btn"><input id="importFile" type="file" accept="application/json,.json" hidden>Import backup</label><button data-signout>Sign out</button></div>`})}
-    ${section({key:"entries",title:"Your entries",variant:"extra",meta:recent.length?`${state.txns.length} ${state.txns.length===1?"entry":"entries"}`:"",body:recent.length?`<ul class="list">${recent.map(entryRow).join("")}</ul>`:`<p class="small muted">Nothing logged yet. Journal entries show up here.</p>`})}
   </div>`);
 
   // Notifications: every scheduled item you've logged or dismissed, newest first, grouped by the day you handled it.
