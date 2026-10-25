@@ -259,7 +259,7 @@ const secret=v=>`<span class="reveal" data-toggle-bal role="button" tabindex="0"
 function meter(label,note,used,budget){
   const left=budget-used,pct=budget>0?Math.min(100,used/budget*100):0;
   return `<div class="meter"><div class="meter-top"><span><b>${label}</b>${note?` <span class="muted small">${note}</span>`:""}</span>
-    <span class="num small ${left<0?"bad":"muted"}">${money(left)} left of ${money(budget)}</span></div>
+    <span class="num small ${left<0?"bad":"muted"}">${left<0?`${money(-left)} over ${money(budget)}`:`${money(left)} left of ${money(budget)}`}</span></div>
     <div class="bar ${left<0?"over":""}"><i style="width:${pct}%"></i></div></div>`;
 }
 function itemRow(s,ctx,extra=""){
@@ -356,27 +356,22 @@ function render(){
     </form>
     ${todayList.length?`<div class="sub-head">Today</div><ul class="list">${todayList.map(entryRow).join("")}</ul>`:""}`}));
 
-  // Spending, by how often each budget resets.
-  const total=(from,to)=>SPEND.reduce((s,c)=>s+spent(c,from,to),0);
+  // Spending: each category's monthly budget averaged down to a week (x12/52) and a paycheck (x12/26).
+  const monthly={food:st.foodWeekly*52/12,gas:st.gasPerPeriod*2,subs:st.subsPerPeriod*2};
   const leftMeta=(left)=>left>=0?`<span class="num strong">${money(left)}</span> left`:`<span class="num bad">${money(-left)}</span> over`;
-  const line=(label,v)=>`<div class="meter-top"><b>${label}</b><span class="num small">${money(v)}</span></div>`;
-  out.push(section({key:"week",title:"Weekly spending",meta:leftMeta(foodLeft),body:`
-    <p class="small muted">${short(wk.start)} – ${short(wk.end)}</p>
-    ${meter("Food","groceries + eating out",food,st.foodWeekly)}
-    <p class="small muted" style="margin-top:-6px">${foodLeft>=0?`That's <span class="num strong">${money(foodLeft/foodDays)}</span> a day for the ${plural(foodDays,"day")} left.`:`Over by ${money(-foodLeft)}. Take it out of next week's food.`}</p>
-    ${line("Everything this week",total(wk.start,wk.end))}`}));
-  const other=spent("other",per.start,per.end);
-  out.push(section({key:"paycheck",title:"Paycheck spending",meta:leftMeta(gasLeft),body:`
-    <p class="small muted">${short(per.start)} – ${short(per.end)}</p>
-    ${meter("Gas",`${money(st.gasPerPeriod)} per paycheck`,gasUsed,st.gasPerPeriod)}
-    ${other?line("Other spending",other):""}
-    ${line("Everything this paycheck",total(per.start,per.end))}`}));
   const mo={start:t.slice(0,8)+"01",end:iso(new Date(parse(t).getFullYear(),parse(t).getMonth()+1,0))};
-  const subsMonth=st.subsPerPeriod*2,subsUsed=spent("subs",mo.start,mo.end);
-  out.push(section({key:"month",title:"Monthly spending",meta:leftMeta(subsMonth-subsUsed),body:`
-    <p class="small muted">${short(mo.start)} – ${short(mo.end)}</p>
-    ${meter("Subscriptions",`${money(subsMonth)}/mo`,subsUsed,subsMonth)}
-    ${line("Everything this month",total(mo.start,mo.end))}`}));
+  const notes={food:"groceries + eating out",gas:"",subs:""};
+  for(const [key,title,win,factor,unit] of [["week","Weekly spending",wk,12/52,"wk"],["paycheck","Paycheck spending",per,12/26,"paycheck"],["month","Monthly spending",mo,1,"mo"]]){
+    let used=0,budget=0;
+    const rows=Object.keys(monthly).map(c=>{const u=spent(c,win.start,win.end),b=monthly[c]*factor;used+=u;budget+=b;return meter(CATS[c],notes[c],u,b)}).join("");
+    const other=spent("other",win.start,win.end);
+    out.push(section({key,title,meta:leftMeta(budget-used),body:`
+      <p class="small muted">${short(win.start)} – ${short(win.end)}${unit==="mo"?"":` · your monthly budgets averaged per ${unit==="wk"?"week":"paycheck"}`}</p>
+      ${rows}
+      ${unit==="wk"?`<p class="small muted" style="margin-top:-6px">${foodLeft>=0?`Food: <span class="num strong">${money(foodLeft/foodDays)}</span> a day for the ${plural(foodDays,"day")} left.`:`Food is over by ${money(-foodLeft)}. Take it out of next week's.`}</p>`:""}
+      ${other?`<div class="meter-top"><b>Other spending</b><span class="num small">${money(other)}</span></div>`:""}
+      <div class="meter-top"><b>Total</b><span class="num small">${money(used+other)} of ${money(budget)}</span></div>`}));
+  }
 
   // Extra
   const recent=[...state.txns].sort((a,c)=>(c.date+(c.createdAt||"")).localeCompare(a.date+(a.createdAt||""))).slice(0,30);
