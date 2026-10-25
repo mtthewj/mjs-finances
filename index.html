@@ -122,7 +122,6 @@ input[type=number]{-moz-appearance:textfield}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 
 /* Forms */
-.quick{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto;gap:8px}
 .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .form-grid label{display:grid;gap:5px;font-size:13px;color:var(--muted);min-width:0}
 .form-grid .full{grid-column:1/-1;display:flex;align-items:center;gap:12px}
@@ -201,8 +200,9 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <script>
 const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
 // Every load starts from the same layout; toggles last until the page is reopened.
-const collapsed=new Set(["balances","week","upcoming","manual","entries","backup"]);
-const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,gear:false,rem:{},armedRem:null,uid:null,push:"unknown",pushBusy:false};
+const collapsed=new Set(["balances","upcoming","paycheck","month","entries","backup"]);
+const SPEND=["food","gas","subs","other"];
+const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,gear:false,rem:{},armedRem:null,lastCat:"food",uid:null,push:"unknown",pushBusy:false};
 let db=null;
 
 const $=s=>document.querySelector(s);
@@ -261,9 +261,6 @@ function meter(label,note,used,budget){
   return `<div class="meter"><div class="meter-top"><span><b>${label}</b>${note?` <span class="muted small">${note}</span>`:""}</span>
     <span class="num small ${left<0?"bad":"muted"}">${money(left)} left of ${money(budget)}</span></div>
     <div class="bar ${left<0?"over":""}"><i style="width:${pct}%"></i></div></div>`;
-}
-function quickForm(cat,label){
-  return `<form class="quick" data-cat="${cat}"><input id="${cat}Amt" class="q-amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="$ spent" aria-label="Amount spent on ${label}"><input id="${cat}Note" class="q-note" type="text" maxlength="60" placeholder="Note (optional)" aria-label="Note"><button class="primary" type="submit">Add</button></form>`;
 }
 function itemRow(s,ctx,extra=""){
   const t=today(),logged=typeof s.actual==="number",skipped=!logged&&s.skipped===true,editing=state.editing===s.id,open=editing||(!logged&&!skipped&&s.date<=t);
@@ -325,32 +322,6 @@ function render(){
       <span class="small muted">${b.card<=0.005?"Paid off":payoff?"Payoff planned "+short(payoff):""}</span></div>
       <div class="bar"><i style="width:${Math.max(0,Math.min(100,(1-b.card/st.startCard)*100))}%"></i></div></div>`}));
 
-  // Notices
-  if(dow(t)==="Thu"&&addDays(t,1)===nextPayday) out.push(`<div class="notice info"><div class="notice-head">Your paycheck lands tonight around 11pm.</div><p class="small">Tomorrow, log what you actually earned, then make the card payment and savings transfer.</p></div>`);
-  const cuKey=t+":"+justLogged.map(s=>s.id).join(",");
-  if(due.length||(justLogged.length&&getDismissed()!==cuKey)) out.push(`<div class="notice ${due.length?"":"info"}">
-    <div class="notice-head"><span>${due.length?`${plural(due.length,"scheduled item")} to log`:"All caught up"}</span>${due.length?"":`<button class="ghost" data-dismiss="${esc(cuKey)}">Dismiss</button>`}</div>
-    <p class="small">${due.length?"Enter the amount that actually happened. It updates your balances.":"Handled today. Tap Undo or Edit if something's off."}</p>
-    <ul class="list">${[...due,...justLogged].map(s=>itemRow(s,"due")).join("")}</ul></div>`);
-
-  // Daily entry
-  out.push(section({key:"food",title:"Today's food",meta:`<span class="num strong">${money(spent("food",t,t))}</span> today`,body:`
-    ${quickForm("food","food")}
-    <p class="small muted">${foodLeft>=0?`<span class="num strong">${money(foodLeft)}</span> left this week · <span class="num strong">${money(foodLeft/foodDays)}</span>/day for ${plural(foodDays,"day")}`:`Over this week's ${money(st.foodWeekly)} by <span class="num bad">${money(-foodLeft)}</span>.`}</p>`}));
-  out.push(section({key:"gas",title:"Gas",meta:`<span class="num strong">${money(spent("gas",t,t))}</span> today`,body:`
-    ${quickForm("gas","gas")}
-    <p class="small muted">${gasLeft>=0?`<span class="num strong">${money(gasLeft)}</span> left until payday ${short(nextPayday)} · ${money(st.gasPerPeriod)} per paycheck`:`Over this pay period's ${money(st.gasPerPeriod)} by <span class="num bad">${money(-gasLeft)}</span>.`}</p>`}));
-
-  // Budgets
-  const other=spent("other",per.start,per.end);
-  out.push(section({key:"week",title:"This week",meta:`${short(wk.start)} – ${short(wk.end)}`,body:`
-    ${meter("Food","groceries + eating out",food,st.foodWeekly)}
-    <p class="small muted" style="margin-top:-6px">${foodLeft>=0?`That's <span class="num strong">${money(foodLeft/foodDays)}</span> a day for the ${plural(foodDays,"day")} left.`:`Over by ${money(-foodLeft)}. Take it out of next week's food.`}</p>
-    <div class="sub-head">This pay period</div>
-    ${meter("Gas","",gasUsed,st.gasPerPeriod)}
-    ${meter("Subscriptions",`$${st.subsPerPeriod*2}/mo`,spent("subs",per.start,per.end),st.subsPerPeriod)}
-    ${other?`<div class="meter-top"><b>Other spending</b><span class="num small">${money(other)}</span></div>`:""}`}));
-
   // Schedule opens in three steps: closed, then just the next item, then three weeks plus tools.
   state.upLevel<2?collapsed.add("upcoming"):collapsed.delete("upcoming");
   out.push(section({key:"upcoming",title:"Coming up",peek:state.upLevel===1,meta:["","Next up","Next 3 weeks"][state.upLevel],body:`
@@ -365,21 +336,55 @@ function render(){
       </form></details>
     <details class="open-only"><summary>Full schedule and logged items</summary><ul class="list" style="margin-top:6px">${sched.map(s=>itemRow(s,"all")).join("")}</ul></details>`}));
 
+  // Notices
+  if(dow(t)==="Thu"&&addDays(t,1)===nextPayday) out.push(`<div class="notice info"><div class="notice-head">Your paycheck lands tonight around 11pm.</div><p class="small">Tomorrow, log what you actually earned, then make the card payment and savings transfer.</p></div>`);
+  const cuKey=t+":"+justLogged.map(s=>s.id).join(",");
+  if(due.length||(justLogged.length&&getDismissed()!==cuKey)) out.push(`<div class="notice ${due.length?"":"info"}">
+    <div class="notice-head"><span>${due.length?`${plural(due.length,"scheduled item")} to log`:"All caught up"}</span>${due.length?"":`<button class="ghost" data-dismiss="${esc(cuKey)}">Dismiss</button>`}</div>
+    <p class="small">${due.length?"Enter the amount that actually happened. It updates your balances.":"Handled today. Tap Undo or Edit if something's off."}</p>
+    <ul class="list">${[...due,...justLogged].map(s=>itemRow(s,"due")).join("")}</ul></div>`);
+
+  // Journal entry: one box for logging anything that isn't on the schedule.
+  const todayList=state.txns.filter(x=>x.date===t);
+  out.push(section({key:"journal",title:"Journal entry",meta:todayList.length?`<span class="num strong">${money(todayList.filter(x=>SPEND.includes(x.cat)).reduce((s,x)=>s+x.amount,0))}</span> spent today`:"",body:`
+    <form class="form-grid" id="addTxn">
+      <label>Amount<input id="txAmt" type="number" inputmode="decimal" step="0.01" min="0" required placeholder="12.50"></label>
+      <label>Category<select id="txCat">${["food","gas","subs","other","income","card","savings","charge"].map(c=>`<option value="${c}" ${c===state.lastCat?"selected":""}>${CATS[c]}</option>`).join("")}</select></label>
+      <label>Note<input id="txNote" type="text" maxlength="80" placeholder="Trader Joe's"></label>
+      <label>Date<input id="txDate" type="date" value="${t}" required></label>
+      <div class="full"><button class="primary" type="submit">Add</button><span class="small muted">Extra shift pay goes under Income.</span></div>
+    </form>
+    ${todayList.length?`<div class="sub-head">Today</div><ul class="list">${todayList.map(entryRow).join("")}</ul>`:""}`}));
+
+  // Spending, by how often each budget resets.
+  const total=(from,to)=>SPEND.reduce((s,c)=>s+spent(c,from,to),0);
+  const leftMeta=(left)=>left>=0?`<span class="num strong">${money(left)}</span> left`:`<span class="num bad">${money(-left)}</span> over`;
+  const line=(label,v)=>`<div class="meter-top"><b>${label}</b><span class="num small">${money(v)}</span></div>`;
+  out.push(section({key:"week",title:"Weekly spending",meta:leftMeta(foodLeft),body:`
+    <p class="small muted">${short(wk.start)} – ${short(wk.end)}</p>
+    ${meter("Food","groceries + eating out",food,st.foodWeekly)}
+    <p class="small muted" style="margin-top:-6px">${foodLeft>=0?`That's <span class="num strong">${money(foodLeft/foodDays)}</span> a day for the ${plural(foodDays,"day")} left.`:`Over by ${money(-foodLeft)}. Take it out of next week's food.`}</p>
+    ${line("Everything this week",total(wk.start,wk.end))}`}));
+  const other=spent("other",per.start,per.end);
+  out.push(section({key:"paycheck",title:"Paycheck spending",meta:leftMeta(gasLeft),body:`
+    <p class="small muted">${short(per.start)} – ${short(per.end)}</p>
+    ${meter("Gas",`${money(st.gasPerPeriod)} per paycheck`,gasUsed,st.gasPerPeriod)}
+    ${other?line("Other spending",other):""}
+    ${line("Everything this paycheck",total(per.start,per.end))}`}));
+  const mo={start:t.slice(0,8)+"01",end:iso(new Date(parse(t).getFullYear(),parse(t).getMonth()+1,0))};
+  const subsMonth=st.subsPerPeriod*2,subsUsed=spent("subs",mo.start,mo.end);
+  out.push(section({key:"month",title:"Monthly spending",meta:leftMeta(subsMonth-subsUsed),body:`
+    <p class="small muted">${short(mo.start)} – ${short(mo.end)}</p>
+    ${meter("Subscriptions",`${money(subsMonth)}/mo`,subsUsed,subsMonth)}
+    ${line("Everything this month",total(mo.start,mo.end))}`}));
+
   // Extra
   const recent=[...state.txns].sort((a,c)=>(c.date+(c.createdAt||"")).localeCompare(a.date+(a.createdAt||""))).slice(0,30);
-  out.push(`<div class="extra-zone"><div><div class="label">Extra</div><p class="small muted">Manual entries: anything not on the schedule, like extra shifts or other spending.</p></div>
-    ${section({key:"manual",title:"Manual log spending",variant:"extra",body:`
-      <form class="form-grid" id="addTxn">
-        <label>Amount<input id="txAmt" type="number" inputmode="decimal" step="0.01" min="0" required placeholder="12.50"></label>
-        <label>Category<select id="txCat">${["food","gas","subs","other","income","card","savings","charge"].map(c=>`<option value="${c}">${CATS[c]}</option>`).join("")}</select></label>
-        <label>Date<input id="txDate" type="date" value="${t}" required></label>
-        <label>Note<input id="txNote" type="text" maxlength="80" placeholder="Trader Joe's"></label>
-        <div class="full"><button class="primary" type="submit">Add</button><span class="small muted">Extra shift pay goes under Income.</span></div>
-      </form>`})}
+  out.push(`<div class="extra-zone"><div><div class="label">Extra</div><p class="small muted">Backup, account and every journal entry you've made.</p></div>
     ${section({key:"backup",title:"Backup & account",variant:"extra",body:`
       <p class="small muted">Your data syncs to your Supabase account and is cached on this phone. An occasional backup file is still a good idea.${lastBackup()?` Last export: ${lastBackup()}.`:""}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-export>Export backup</button><label class="file-btn"><input id="importFile" type="file" accept="application/json,.json" hidden>Import backup</label><button data-signout>Sign out</button></div>`})}
-    ${section({key:"entries",title:"Your entries",variant:"extra",meta:recent.length?`${state.txns.length} ${state.txns.length===1?"entry":"entries"}`:"",body:recent.length?`<ul class="list">${recent.map(entryRow).join("")}</ul>`:`<p class="small muted">Nothing logged yet. Food and gas you add at the top show up here too.</p>`})}
+    ${section({key:"entries",title:"Your entries",variant:"extra",meta:recent.length?`${state.txns.length} ${state.txns.length===1?"entry":"entries"}`:"",body:recent.length?`<ul class="list">${recent.map(entryRow).join("")}</ul>`:`<p class="small muted">Nothing logged yet. Journal entries show up here.</p>`})}
   </div>`);
 
   // Notifications: every scheduled item you've logged or dismissed, newest first, grouped by the day you handled it.
@@ -585,15 +590,10 @@ document.addEventListener("change",e=>{
 document.addEventListener("submit",e=>{
   e.preventDefault();
   const f=e.target,now=new Date().toISOString();
-  if(f.classList.contains("quick")){
-    const cat=f.dataset.cat,amount=cents(f.querySelector(".q-amt").value),note=f.querySelector(".q-note").value.trim();
-    if(!(amount>0)) return toast("Enter what you spent");
-    f.reset();
-    write(()=>db.collection("txns").add({amount,cat,date:today(),note:note||CATS[cat],createdAt:now}),`Added ${money(amount)} · ${CATS[cat]}`);
-  } else if(f.id==="addTxn"){
+  if(f.id==="addTxn"){
     const amount=cents($("#txAmt").value); if(!(amount>0)) return;
     const data={amount,cat:$("#txCat").value,date:$("#txDate").value||today(),note:$("#txNote").value.trim(),createdAt:now};
-    f.reset();$("#txDate").value=today();
+    state.lastCat=data.cat;f.reset();$("#txDate").value=today();$("#txCat").value=data.cat;
     write(()=>db.collection("txns").add(data),`Added ${money(amount)} · ${CATS[data.cat]}`);
   } else if(f.id==="addRem"){
     const text=$("#remText").value.trim(),every=Math.max(1,Math.round(Number($("#remEvery").value)||1));
