@@ -204,6 +204,7 @@ const collapsed=new Set(["balances","upcoming","week","paycheck","month","log","
 const SPEND=["food","gas","subs","other"];
 const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,gear:false,rem:{},armedRem:null,lastCat:"food",uid:null,push:"unknown",pushBusy:false};
 let db=null;
+const handledNow=new Set(); // scheduled items logged or dismissed since the app opened
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -302,7 +303,8 @@ function render(){
   const sched=[...state.schedule].sort((a,c)=>a.date<c.date?-1:a.date>c.date?1:(a.order||0)-(c.order||0));
   const due=sched.filter(s=>s.date<=t&&typeof s.actual!=="number"&&!s.skipped);
   const justLogged=sched.filter(s=>(typeof s.actual==="number"||s.skipped)&&s.loggedAt&&iso(new Date(s.loggedAt))===t);
-  const upcoming=sched.filter(s=>s.date>t&&s.date<=addDays(t,21));
+  // Items logged or dismissed ahead of time leave Coming up, except ones handled since the app opened (so Edit/Undo stays handy).
+  const upcoming=sched.filter(s=>s.date>t&&s.date<=addDays(t,21)&&(!(typeof s.actual==="number"||s.skipped)||handledNow.has(s.id)));
   const openCard=sched.filter(s=>s.cat==="card"&&typeof s.actual!=="number"&&!s.skipped);
   const payoff=openCard.length?openCard[openCard.length-1].date:null;
   const food=spent("food",wk.start,wk.end), foodLeft=st.foodWeekly-food, foodDays=diffDays(t,wk.end)+1;
@@ -566,10 +568,10 @@ document.addEventListener("click",e=>{
   if(el=at("[data-log]")){
     const v=cents(el.closest("li")?.querySelector("input")?.value);
     if(!(v>=0)) return toast("Enter an amount first");
-    state.editing=null;
+    state.editing=null;handledNow.add(el.dataset.log);
     return write(()=>db.doc("schedule/"+el.dataset.log).update({actual:v,skipped:false,loggedAt:new Date().toISOString()}),"Logged");
   }
-  if(el=at("[data-skip]")){state.editing=null;return write(()=>db.doc("schedule/"+el.dataset.skip).update({skipped:true,loggedAt:new Date().toISOString()}),"Dismissed. It won't count toward your balances.")}
+  if(el=at("[data-skip]")){state.editing=null;handledNow.add(el.dataset.skip);return write(()=>db.doc("schedule/"+el.dataset.skip).update({skipped:true,loggedAt:new Date().toISOString()}),"Dismissed. It won't count toward your balances.")}
   if(el=at("[data-unskip]")){return write(()=>db.doc("schedule/"+el.dataset.unskip).update({skipped:false}),"Restored")}
   if(el=at("[data-unlog]")){state.editing=null;return write(()=>db.doc("schedule/"+el.dataset.unlog).update({actual:null}),"Marked as not done")}
   if(el=at("[data-del]")){
