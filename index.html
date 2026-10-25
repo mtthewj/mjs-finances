@@ -200,7 +200,7 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <script>
 const CATS={income:"Income",food:"Food",gas:"Gas",subs:"Subscriptions",other:"Other spending",card:"Card payment",savings:"Savings transfer",charge:"Card charge / interest"};
 // Every load starts from the same layout; toggles last until the page is reopened.
-const collapsed=new Set(["balances","upcoming","paycheck","month","backup"]);
+const collapsed=new Set(["balances","upcoming","week","paycheck","month","log","backup"]);
 const SPEND=["food","gas","subs","other"];
 const state={settings:null,schedule:[],txns:[],ready:{s:false,sc:false,t:false},editing:null,armed:null,showBal:false,showSmall:false,notif:false,notifEnter:false,upLevel:0,gear:false,rem:{},armedRem:null,lastCat:"food",uid:null,push:"unknown",pushBusy:false};
 let db=null;
